@@ -1,0 +1,154 @@
+{
+  "consumer": {
+    "name": "NodeA"
+  },
+  "interactions": [
+    {
+      "description": "a request for file metadata",
+      "providerStates": [
+        {
+          "name": "a file exists"
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "path": "/files/test.txt/metadata"
+      },
+      "response": {
+        "body": {
+          "block_size": 101,
+          "blocks": [
+            {
+              "index": 101,
+              "strong_hash": "some string",
+              "weak_hash": 101
+            }
+          ],
+          "filePath": "test.txt",
+          "full_hash": "some string",
+          "modified_at": "some string",
+          "size": 101
+        },
+        "generators": {
+          "body": {
+            "$.block_size": {
+              "max": 10,
+              "min": 0,
+              "type": "RandomInt"
+            },
+            "$.blocks[*].index": {
+              "max": 10,
+              "min": 0,
+              "type": "RandomInt"
+            },
+            "$.blocks[*].weak_hash": {
+              "max": 10,
+              "min": 0,
+              "type": "RandomInt"
+            },
+            "$.size": {
+              "max": 10,
+              "min": 0,
+              "type": "RandomInt"
+            }
+          }
+        },
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "matchingRules": {
+          "body": {
+            "$.block_size": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "integer"
+                }
+              ]
+            },
+            "$.blocks": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.blocks[*].index": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "integer"
+                }
+              ]
+            },
+            "$.blocks[*].strong_hash": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.blocks[*].weak_hash": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "integer"
+                }
+              ]
+            },
+            "$.filePath": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.full_hash": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.modified_at": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.size": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "integer"
+                }
+              ]
+            }
+          }
+        },
+        "status": 200
+      }
+    }
+  ],
+  "metadata": {
+    "pact-js": {
+      "version": "16.5.0"
+    },
+    "pactRust": {
+      "ffi": "0.5.4",
+      "models": "1.3.11"
+    },
+    "pactSpecification": {
+      "version": "3.0.0"
+    }
+  },
+  "provider": {
+    "name": "NodeB"
+  }
+}
