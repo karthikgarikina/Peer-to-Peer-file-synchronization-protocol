@@ -16,42 +16,18 @@
       },
       "response": {
         "body": {
-          "block_size": 101,
+          "block_size": 1024,
           "blocks": [
             {
-              "index": 101,
-              "strong_hash": "some string",
-              "weak_hash": 101
+              "index": 0,
+              "strong_hash": "sha256hash",
+              "weak_hash": 12345
             }
           ],
           "filePath": "test.txt",
-          "full_hash": "some string",
-          "modified_at": "some string",
-          "size": 101
-        },
-        "generators": {
-          "body": {
-            "$.block_size": {
-              "max": 10,
-              "min": 0,
-              "type": "RandomInt"
-            },
-            "$.blocks[*].index": {
-              "max": 10,
-              "min": 0,
-              "type": "RandomInt"
-            },
-            "$.blocks[*].weak_hash": {
-              "max": 10,
-              "min": 0,
-              "type": "RandomInt"
-            },
-            "$.size": {
-              "max": 10,
-              "min": 0,
-              "type": "RandomInt"
-            }
-          }
+          "full_hash": "abc123",
+          "modified_at": "2023-10-27T10:00:00.000Z",
+          "size": 10
         },
         "headers": {
           "Content-Type": "application/json"
@@ -70,7 +46,8 @@
               "combine": "AND",
               "matchers": [
                 {
-                  "match": "type"
+                  "match": "type",
+                  "min": 1
                 }
               ]
             },
@@ -127,6 +104,122 @@
               "matchers": [
                 {
                   "match": "integer"
+                }
+              ]
+            }
+          }
+        },
+        "status": 200
+      }
+    },
+    {
+      "description": "a request for non-existent file metadata",
+      "providerStates": [
+        {
+          "name": "no file exists"
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "path": "/files/nonexistent.txt/metadata"
+      },
+      "response": {
+        "status": 404
+      }
+    },
+    {
+      "description": "a request to patch a file",
+      "providerStates": [
+        {
+          "name": "a file can be patched"
+        }
+      ],
+      "request": {
+        "body": {
+          "base_full_hash": "abc123",
+          "final_full_hash": "def456",
+          "patches": [
+            {
+              "byte_index": 0,
+              "data": "aGVsbG8=",
+              "index": 0,
+              "type": "new_block"
+            }
+          ]
+        },
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "matchingRules": {
+          "body": {
+            "$.base_full_hash": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.final_full_hash": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.patches": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type",
+                  "min": 1
+                }
+              ]
+            },
+            "$.patches[*].byte_index": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "integer"
+                }
+              ]
+            },
+            "$.patches[*].data": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.patches[*].index": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "integer"
+                }
+              ]
+            }
+          }
+        },
+        "method": "PATCH",
+        "path": "/files/test.txt"
+      },
+      "response": {
+        "body": {
+          "status": "success"
+        },
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "matchingRules": {
+          "body": {
+            "$.status": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
                 }
               ]
             }

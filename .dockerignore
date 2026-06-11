@@ -1,0 +1,5 @@
+node_modules
+sync_dir_a
+sync_dir_b
+sync_dir_test
+.env

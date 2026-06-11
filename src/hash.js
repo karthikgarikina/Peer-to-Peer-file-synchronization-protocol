@@ -4,6 +4,12 @@ const util = require('util');
 
 const BLOCK_SIZE = 1024; // 1KB blocks
 
+/**
+ * Compute Adler-32 rolling hash for a buffer.
+ * Used as the "weak hash" for quick block matching in the rsync algorithm.
+ * @param {Buffer} buf - Data buffer
+ * @returns {number} 32-bit Adler-32 checksum
+ */
 function adler32(buf) {
   let a = 1;
   let b = 0;
@@ -14,17 +20,29 @@ function adler32(buf) {
   return (b << 16) | a;
 }
 
+/**
+ * Compute SHA-256 hash for a buffer.
+ * Used as the "strong hash" to confirm block matches and for full-file integrity.
+ * @param {Buffer} buf - Data buffer
+ * @returns {string} Hex-encoded SHA-256 hash
+ */
 function sha256(buf) {
   return crypto.createHash('sha256').update(buf).digest('hex');
 }
 
-async function getFileMetadata(filePath) {
+/**
+ * Generate complete file metadata including block-level hashes.
+ * @param {string} filePath - Absolute path to the file
+ * @param {string} relativePath - Relative path for the response
+ * @returns {Object} File metadata with block hashes
+ */
+async function getFileMetadata(filePath, relativePath) {
   const stat = await util.promisify(fs.stat)(filePath);
   const buffer = await util.promisify(fs.readFile)(filePath);
-  
+
   const full_hash = sha256(buffer);
   const blocks = [];
-  
+
   for (let i = 0; i < buffer.length; i += BLOCK_SIZE) {
     const chunk = buffer.slice(i, i + BLOCK_SIZE);
     blocks.push({
@@ -33,8 +51,9 @@ async function getFileMetadata(filePath) {
       strong_hash: sha256(chunk)
     });
   }
-  
+
   return {
+    filePath: relativePath || '',
     size: stat.size,
     modified_at: stat.mtime.toISOString(),
     full_hash,
