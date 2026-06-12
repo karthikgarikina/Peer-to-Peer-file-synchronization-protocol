@@ -3,6 +3,48 @@ const fs = require('fs');
 const util = require('util');
 
 const BLOCK_SIZE = 1024; // 1KB blocks
+const ADLER_MOD = 65521;
+
+function normalizeAdlerPart(value) {
+  const normalized = value % ADLER_MOD;
+  return normalized < 0 ? normalized + ADLER_MOD : normalized;
+}
+
+function combineAdlerParts(a, b) {
+  // Keep the same signed 32-bit representation the original adler32() returned.
+  return (b << 16) | a;
+}
+
+/**
+ * Rolling Adler-style checksum state.
+ * Supports O(1) updates for a fixed-size sliding window.
+ */
+class RollingAdler32 {
+  constructor(buf) {
+    this.length = buf.length;
+    this.a = 1;
+    this.b = 0;
+
+    for (let i = 0; i < buf.length; i++) {
+      this.a = (this.a + buf[i]) % ADLER_MOD;
+      this.b = (this.b + this.a) % ADLER_MOD;
+    }
+  }
+
+  value() {
+    return combineAdlerParts(this.a, this.b);
+  }
+
+  roll(outByte, inByte) {
+    if (this.length === 0) {
+      throw new Error('Cannot roll an empty checksum window');
+    }
+
+    this.a = normalizeAdlerPart(this.a - outByte + inByte);
+    this.b = normalizeAdlerPart(this.b - (this.length * outByte) + this.a - 1);
+    return this.value();
+  }
+}
 
 /**
  * Compute Adler-32 rolling hash for a buffer.
@@ -11,13 +53,7 @@ const BLOCK_SIZE = 1024; // 1KB blocks
  * @returns {number} 32-bit Adler-32 checksum
  */
 function adler32(buf) {
-  let a = 1;
-  let b = 0;
-  for (let i = 0; i < buf.length; i++) {
-    a = (a + buf[i]) % 65521;
-    b = (b + a) % 65521;
-  }
-  return (b << 16) | a;
+  return new RollingAdler32(buf).value();
 }
 
 /**
@@ -64,6 +100,7 @@ async function getFileMetadata(filePath, relativePath) {
 
 module.exports = {
   BLOCK_SIZE,
+  RollingAdler32,
   adler32,
   sha256,
   getFileMetadata

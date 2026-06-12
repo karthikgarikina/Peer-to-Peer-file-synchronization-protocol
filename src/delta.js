@@ -1,7 +1,16 @@
 const fs = require('fs');
 const util = require('util');
 const path = require('path');
-const { BLOCK_SIZE, adler32, sha256 } = require('./hash');
+const { BLOCK_SIZE, RollingAdler32, sha256 } = require('./hash');
+
+function createNewBlockPatch(buf, start, end) {
+  return {
+    type: 'new_block',
+    index: Math.floor(start / BLOCK_SIZE),
+    byte_index: start,
+    data: buf.slice(start, end).toString('base64')
+  };
+}
 
 /**
  * Compute delta patches between a local file and remote metadata.
@@ -51,42 +60,60 @@ async function computePatches(localFilePath, remoteMetadata, fileDeleted = false
 
   const patches = [];
   let i = 0;
+  let unmatchedStart = 0;
+  let rolling = null;
 
-  while (i < buf.length) {
+  if (buf.length >= BLOCK_SIZE) {
+    rolling = new RollingAdler32(buf.slice(0, BLOCK_SIZE));
+  }
+
+  const flushUnmatched = (end) => {
+    if (unmatchedStart < end) {
+      patches.push(createNewBlockPatch(buf, unmatchedStart, end));
+    }
+    unmatchedStart = end;
+  };
+
+  while (i + BLOCK_SIZE <= buf.length) {
     let matchedBlock = null;
+    const weak = rolling.value();
 
-    // Only check for block match if we have a full block to compare
-    if (i + BLOCK_SIZE <= buf.length) {
-      const weak = adler32(buf.slice(i, i + BLOCK_SIZE));
-      if (remoteBlocksMap.has(weak)) {
-        // Weak hash matched - verify with strong hash to avoid collisions
-        const strong = sha256(buf.slice(i, i + BLOCK_SIZE));
-        const potentialMatches = remoteBlocksMap.get(weak);
-        matchedBlock = potentialMatches.find(b => b.strong_hash === strong);
-      }
+    if (remoteBlocksMap.has(weak)) {
+      const window = buf.slice(i, i + BLOCK_SIZE);
+      const strong = sha256(window);
+      const potentialMatches = remoteBlocksMap.get(weak);
+      matchedBlock = potentialMatches.find(b => b.strong_hash === strong);
     }
 
     if (matchedBlock) {
+      flushUnmatched(i);
+
       // Block already exists on remote - just reference it
       patches.push({
         type: 'copy_block',
         from_index: matchedBlock.index,
         to_index: Math.floor(i / BLOCK_SIZE)
       });
+
       i += BLOCK_SIZE;
+      unmatchedStart = i;
+
+      if (i + BLOCK_SIZE <= buf.length) {
+        rolling = new RollingAdler32(buf.slice(i, i + BLOCK_SIZE));
+      }
     } else {
-      // New or changed data - send the literal bytes
-      const end = Math.min(i + BLOCK_SIZE, buf.length);
-      const chunk = buf.slice(i, end);
-      patches.push({
-        type: 'new_block',
-        index: Math.floor(i / BLOCK_SIZE),
-        byte_index: i,
-        data: chunk.toString('base64')
-      });
-      i += chunk.length;
+      const outgoingByte = buf[i];
+      i += 1;
+
+      if (i + BLOCK_SIZE <= buf.length) {
+        const incomingByte = buf[i + BLOCK_SIZE - 1];
+        rolling.roll(outgoingByte, incomingByte);
+      }
     }
   }
+
+  // Any bytes not covered by copy_block instructions are sent as literal data.
+  flushUnmatched(buf.length);
 
   return { patches, final_full_hash };
 }
