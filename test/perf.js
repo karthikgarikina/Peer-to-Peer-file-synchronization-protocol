@@ -6,6 +6,7 @@ const NUM_FILES = 100;
 const FILE_SIZE = 1024; // 1KB per file
 const TIMEOUT_MS = 30000; // 30 seconds timeout
 const POLL_INTERVAL_MS = 200;
+const SETTLE_TIME_MS = 2000; // Time to wait for writes to finish
 
 /**
  * Performance test: creates 100 small files in sync_dir_a and verifies
@@ -77,52 +78,55 @@ async function run() {
 
       // Progress reporting (only when count changes)
       if (syncedCount !== lastCount) {
-        console.log(`  [${(elapsed / 1000).toFixed(1)}s] ${syncedCount}/${NUM_FILES} files synced`);
+        console.log(`  [${(elapsed / 1000).toFixed(1)}s] ${syncedCount}/${NUM_FILES} files detected`);
         lastCount = syncedCount;
       }
 
       if (syncedCount >= NUM_FILES) {
         clearInterval(pollInterval);
         const duration = Date.now() - startTime;
-        console.log(`\nAll ${NUM_FILES} files synced in ${duration}ms (${(duration / 1000).toFixed(1)}s)`);
+        console.log(`\nAll ${NUM_FILES} files detected in ${duration}ms (${(duration / 1000).toFixed(1)}s)`);
+        console.log(`Allowing ${SETTLE_TIME_MS / 1000} seconds for the sync agent to finish writing data to disk...`);
 
-        // Verify content for a sample of files
-        const SAMPLE_SIZE = Math.min(100, NUM_FILES);
-        let mismatches = 0;
-        for (let i = 0; i < SAMPLE_SIZE; i++) {
-          const idx = Math.floor(Math.random() * NUM_FILES);
-          // FIXED: Added runId to the filename format so it matches the created files
-          const fileName = `perf_${runId}_${idx}.txt`; 
-          try {
-            const contentA = fs.readFileSync(path.join(syncDirA, fileName), 'utf8');
-            const contentB = fs.readFileSync(path.join(syncDirB, fileName), 'utf8');
-            if (contentA !== contentB) {
+        // Wait for the files to be fully written before verifying
+        setTimeout(() => {
+          let mismatches = 0;
+          
+          // Verify EVERY file instead of random sampling
+          for (let i = 0; i < NUM_FILES; i++) {
+            const fileName = `perf_${runId}_${i}.txt`; 
+            try {
+              const contentA = fs.readFileSync(path.join(syncDirA, fileName), 'utf8');
+              const contentB = fs.readFileSync(path.join(syncDirB, fileName), 'utf8');
+              
+              if (contentA !== contentB) {
+                console.error(`Mismatch in ${fileName}: Expected ${contentA.length} chars, got ${contentB.length} chars.`);
+                mismatches++;
+              }
+            } catch (e) {
+              console.error(`Error reading ${fileName} during verification:`, e.message);
               mismatches++;
             }
-          } catch (e) {
-            console.error(`Error reading ${fileName} during verification:`, e.message);
-            mismatches++;
           }
-        }
 
-        if (mismatches > 0) {
-          console.error(`Content mismatch in ${mismatches}/${SAMPLE_SIZE} sampled files!`);
-          process.exit(1);
-        }
+          if (mismatches > 0) {
+            console.error(`\n❌ Content mismatch in ${mismatches}/${NUM_FILES} files!`);
+            process.exit(1);
+          }
 
-        console.log(`Content verification passed (${SAMPLE_SIZE} files sampled).`);
+          console.log(`Content verification passed (All ${NUM_FILES} files match perfectly).`);
 
-        if (duration <= TIMEOUT_MS) {
-          console.log(`\n✅ PASS: Synced ${NUM_FILES} files in ${(duration / 1000).toFixed(1)}s (limit: ${TIMEOUT_MS / 1000}s)`);
-          process.exit(0);
-        } else {
-          console.error(`\n❌ FAIL: Took ${(duration / 1000).toFixed(1)}s (limit: ${TIMEOUT_MS / 1000}s)`);
-          process.exit(1);
-        }
-      }
-
-      // Timeout check
-      if (Date.now() - startTime > TIMEOUT_MS) {
+          if (duration <= TIMEOUT_MS) {
+            console.log(`\n✅ PASS: Synced ${NUM_FILES} files in ${(duration / 1000).toFixed(1)}s (limit: ${TIMEOUT_MS / 1000}s)`);
+            resolve();
+            process.exit(0);
+          } else {
+            console.error(`\n❌ FAIL: Took ${(duration / 1000).toFixed(1)}s (limit: ${TIMEOUT_MS / 1000}s)`);
+            process.exit(1);
+          }
+        }, SETTLE_TIME_MS);
+      } else if (Date.now() - startTime > TIMEOUT_MS) {
+        // Timeout check
         clearInterval(pollInterval);
         console.error(`\n❌ TIMEOUT: Only synced ${syncedCount}/${NUM_FILES} files in ${TIMEOUT_MS / 1000}s`);
         process.exit(1);

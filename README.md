@@ -4,16 +4,18 @@ A peer-to-peer file synchronization service inspired by rsync. The system synchr
 
 ## Features
 
-- Real-time file synchronization
-- Delta synchronization using rolling hash and SHA-256
+- Peer-to-peer file synchronization
+- Delta-based file transfer using rolling hash and SHA-256
 - File create, update, and delete synchronization
 - Conflict detection and conflict file generation
 - REST API based node-to-node communication
-- Path traversal protection
+- Offline reconciliation
+- Bulk synchronization
+- Security protections like Path traversal protection
 - Rate limiting
 - Configurable file size limits
-- Dockerized deployment
 - Contract and performance testing
+- Dockerized deployment
 
 ---
 
@@ -80,7 +82,10 @@ docker compose down
 ```
 
 ---
+## Video Link
+https://youtu.be/BNuzrMljQyM?si=_EhJf7q7HeYVKw5Y
 
+---
 ## Usage
 
 ### Create a File
